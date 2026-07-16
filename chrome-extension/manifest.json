@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Relax — 蕃茄鐘與鬧鐘",
+  "version": "1.0.0",
+  "description": "蕃茄鐘休息提醒 + 指定時間鬧鐘，時間到跳通知並播放音效。",
+  "permissions": ["alarms", "notifications", "storage", "offscreen"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Relax",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

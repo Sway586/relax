@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Relax</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>🍅 Relax</h1>
+    </header>
+
+    <!-- 蕃茄鐘 -->
+    <section class="card">
+      <div class="card-title">蕃茄鐘</div>
+      <div class="row">
+        <label>工作（分鐘）<input id="workMinutes" type="number" min="1" max="180" /></label>
+        <label>休息（分鐘）<input id="breakMinutes" type="number" min="1" max="120" /></label>
+      </div>
+      <div id="pomodoroStatus" class="status">尚未開始</div>
+      <button id="pomodoroToggle" class="primary">開始</button>
+    </section>
+
+    <!-- 指定時間鬧鐘 -->
+    <section class="card">
+      <div class="card-title">指定時間鬧鐘</div>
+      <ul id="alarmList" class="alarm-list"></ul>
+      <div class="row add-alarm">
+        <input id="alarmTime" type="time" />
+        <input id="alarmLabel" type="text" placeholder="標籤（選填）" />
+        <button id="addAlarm">新增</button>
+      </div>
+    </section>
+
+    <!-- 聲音 -->
+    <section class="card">
+      <div class="card-title">聲音提醒</div>
+      <div class="row space-between">
+        <label class="switch-label">
+          <input id="soundEnabled" type="checkbox" /> 啟用音效
+        </label>
+        <button id="testSound" class="ghost">試聽</button>
+      </div>
+    </section>
+
+    <!-- 浮動視窗 -->
+    <section class="card">
+      <div class="card-title">浮動視窗</div>
+      <label class="switch-label">
+        <input id="widgetEnabled" type="checkbox" /> 在網頁上顯示浮動視窗
+      </label>
+    </section>
+
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>

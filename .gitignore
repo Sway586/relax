@@ -1,0 +1,16 @@
+# Windows / .NET
+windows/**/bin/
+windows/**/obj/
+*.user
+
+# macOS / Xcode
+mac/**/build/
+mac/**/DerivedData/
+*.xcuserstate
+mac/**/xcuserdata/
+
+# macOS 系統檔
+.DS_Store
+
+# JetBrains IDE
+.idea/
