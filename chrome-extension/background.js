@@ -41,6 +41,11 @@ async function ensureOffscreen() {
   }
 }
 
+// 寫入一個提醒事件，讓網頁上的浮動 widget 播放醒目動畫。
+async function signalAlert(kind, text) {
+  await chrome.storage.local.set({ relaxAlert: { at: Date.now(), kind, text: text || "" } });
+}
+
 // ---- 蕃茄鐘 ---------------------------------------------------------------
 
 // 依目前 phase 排下一次蕃茄鐘 alarm 並寫回 endsAt。
@@ -76,8 +81,10 @@ async function onPomodoroFired() {
   settings.pomodoro.phase = wasWork ? "break" : "work";
   if (wasWork) {
     await notify("pomodoro-fire", "休息一下 🍵", `工作時間到，休息 ${settings.pomodoro.breakMinutes} 分鐘。`);
+    await signalAlert("break");
   } else {
     await notify("pomodoro-fire", "開始工作 🍅", `休息結束，專注 ${settings.pomodoro.workMinutes} 分鐘。`);
+    await signalAlert("work");
   }
   await playSound();
   await schedulePomodoro(settings);
@@ -113,6 +120,7 @@ async function onClockFired(alarmId) {
   if (!alarm || !alarm.enabled) return;
   const label = alarm.label ? `：${alarm.label}` : "";
   await notify(`clock-${alarmId}`, `⏰ 鬧鐘 ${alarm.time}${label}`, "時間到了！");
+  await signalAlert("alarm", `鬧鐘 ${alarm.time}${label}`);
   await playSound();
   // 重排到明天同一時間。
   await chrome.alarms.create(CLOCK_PREFIX + alarmId, { when: nextOccurrence(alarm.time) });

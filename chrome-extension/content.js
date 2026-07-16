@@ -13,7 +13,8 @@
   let settings = {};
   let host = null, shadow = null, ball = null, ballTime = null;
   let phaseEl = null, timeEl = null, toggleBtn = null, root = null;
-  let tick = null, drag = null, closedThisPage = false;
+  let tick = null, drag = null;
+  let alertActive = false;
 
   const pomo = () => settings.pomodoro || {};
   const widget = () => Object.assign({}, WIDGET_DEFAULT, settings.widget);
@@ -80,6 +81,28 @@
       #toggle:hover { background: #c8443d; }
       #close { flex: 0 0 auto; width: 34px; background: #eee; color: #666; }
       #title { font-size: 11px; color: #999; margin-bottom: 8px; }
+
+      /* ---- 時間到的提醒（低調但看得出來）---- */
+      #banner {
+        display: none; margin: -12px -12px 10px; padding: 10px 12px;
+        border-radius: 10px 10px 0 0; color: #fff; font-weight: 600;
+        text-align: center; font-size: 14px;
+        animation: relax-fadein .35s ease-out; /* 只淡入一次，不閃爍 */
+      }
+      #banner.break { background: #3a9d5d; }
+      #banner.work  { background: #e2554e; }
+      #banner.alarm { background: #d08a2e; }
+      @keyframes relax-fadein {
+        from { opacity: 0; transform: translateY(-4px); }
+        to   { opacity: 1; transform: none; }
+      }
+
+      /* 溫和的「呼吸式」脈動：緩慢放大縮小 + 柔和光暈淡入淡出 */
+      #ball.alerting { animation: relax-breathe 2.2s ease-in-out infinite; }
+      @keyframes relax-breathe {
+        0%,100% { transform: scale(1);    box-shadow: 0 4px 14px rgba(0,0,0,.28); }
+        50%     { transform: scale(1.06); box-shadow: 0 0 0 5px rgba(226,85,78,.22), 0 5px 16px rgba(0,0,0,.3); }
+      }
     </style>
     <div id="root">
       <div id="ball" title="Relax 蕃茄鐘（拖曳可移動，點一下展開）">
@@ -87,12 +110,13 @@
         <span id="ballTime"></span>
       </div>
       <div id="panel">
+        <div id="banner"></div>
         <div id="title">🍅 Relax</div>
         <div class="phase" id="phase">未開始</div>
         <div class="time" id="time">--:--</div>
         <div class="row">
           <button id="toggle">開始</button>
-          <button id="close" title="在此頁隱藏">✕</button>
+          <button id="close" title="關閉浮動視窗（可從擴充功能開關再打開）">✕</button>
         </div>
       </div>
     </div>`;
@@ -138,7 +162,32 @@
   }
 
   function applyCollapsed() {
-    shadow.getElementById("panel").style.display = widget().collapsed ? "none" : "block";
+    // 提醒中一律展開面板，讓橫幅可見。
+    const show = alertActive || !widget().collapsed;
+    shadow.getElementById("panel").style.display = show ? "block" : "none";
+  }
+
+  // 時間到：展開面板 + 橫幅 + 蕃茄球溫和呼吸脈動（持續到使用者互動才停）。
+  function triggerAlert(evt) {
+    if (!host || !ball) return;
+    const banner = shadow.getElementById("banner");
+    banner.className = evt.kind;
+    banner.textContent =
+      evt.kind === "break" ? "🍵 休息時間到！" :
+      evt.kind === "work"  ? "🍅 開始工作！"   :
+      `⏰ ${evt.text || "鬧鐘時間到"}`;
+    banner.style.display = "block";
+
+    alertActive = true;
+    applyCollapsed();
+    ball.classList.add("alerting");
+  }
+
+  function clearAlert() {
+    alertActive = false;
+    if (ball) ball.classList.remove("alerting");
+    if (shadow) shadow.getElementById("banner").style.display = "none";
+    if (host) applyCollapsed();
   }
 
   function render() {
@@ -167,18 +216,22 @@
   // ---- 事件 ----
 
   function onToggleTimer() {
+    clearAlert();
     const running = !!pomo().enabled;
     chrome.runtime.sendMessage({ type: running ? "STOP_POMODORO" : "START_POMODORO" });
     // 新狀態由 storage.onChanged 帶回並 render
   }
 
-  function onClose() {
-    // 只隱藏本頁（不動全域設定）；重整或開新頁仍會出現。
-    closedThisPage = true;
-    teardown();
+  async function onClose() {
+    // 關閉浮動視窗＝關掉全域開關；之後從擴充功能 popup 的「顯示浮動視窗」可再打開，
+    // 所有分頁會即時出現（不需重整）。
+    clearAlert();
+    await patchWidget({ enabled: false });
+    // storage.onChanged 會讓所有分頁 teardown
   }
 
   function onPointerDown(e) {
+    if (alertActive) clearAlert(); // 碰一下即解除提醒
     drag = {
       startX: e.clientX, startY: e.clientY, moved: false,
       originLeft: parseInt(root.style.left) || 0,
@@ -216,14 +269,20 @@
   // ---- 跨分頁同步 ----
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local" || !changes.settings) return;
-    settings = changes.settings.newValue || {};
-    if (closedThisPage) return;
-    if (!widget().enabled) { teardown(); return; }
-    if (!host) { build(); return; }
-    applyPosition();
-    applyCollapsed();
-    render();
+    if (area !== "local") return;
+
+    if (changes.settings) {
+      settings = changes.settings.newValue || {};
+      if (!widget().enabled) { teardown(); }        // 關閉 → 移除
+      else if (!host) { build(); }                  // 從關閉重新打開 → 即時建立
+      else { applyPosition(); applyCollapsed(); render(); }
+    }
+
+    // 時間到的提醒事件（僅對最近事件反應，避免新分頁重播舊事件）。
+    if (changes.relaxAlert && changes.relaxAlert.newValue) {
+      const evt = changes.relaxAlert.newValue;
+      if (host && Date.now() - evt.at < 15000) triggerAlert(evt);
+    }
   });
 
   window.addEventListener("resize", () => { if (host) applyPosition(); });
